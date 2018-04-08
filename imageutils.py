@@ -70,29 +70,32 @@ def plot_mri(images, nr):
 
 
 def read_pet_images(path):
-    dcm_files = []
+    pet_images = []
     for dir_name, sub_dir, files in os.walk(path):
-
         for sub in sub_dir:
-            print(files)
 
-            for file in files:
-                if ".dcm" in file.lower():
-                    dcm_files.append(path + file)
-
-    ref = dicom.read_file(dcm_files[0])
-    pix_dim = (int(ref.Rows), int(ref.Columns), len(dcm_files))
-
-    array_dicom = np.zeros(pix_dim, dtype=ref.pixel_array.dtype)
-
-    for file_name in dcm_files:
-        ds = dicom.read_file(file_name)
-        array_dicom[:, :, dcm_files.index(file_name)] = ds.pixel_array
+            for d, s, files in os.walk(path+"/"+sub+"/"):
+                    dcm_files = []
+                    for file in files:
+                        if ".dcm" in file.lower():
+                            dcm_files.append(path + "/" + sub + "/" + "/" + file)
 
 
-    images = array_dicom[:, :, 80]
+                    ref = dicom.read_file(dcm_files[0])
+                    pix_dim = (int(ref.Rows), int(ref.Columns), len(dcm_files))
 
-    return images
+                    array_dicom = np.zeros(pix_dim, dtype=ref.pixel_array.dtype)
+
+                    for file_name in dcm_files:
+                        ds = dicom.read_file(file_name)
+                        array_dicom[:, :, dcm_files.index(file_name)] = ds.pixel_array
+
+                    matrix = array_dicom[:, :, 88]
+                    pet_images.append(matrix)
+
+
+
+    return pet_images
 
 def read_mri_images(path):
     images = []
@@ -165,23 +168,27 @@ def print_matrix(matrix):
     for row in matrix:
         print(row)
 
-pet_images = read_pet_images("C:/Users/Henrik/Desktop/PET_AD/")
+pet_ad = read_pet_images("C:/Users/Henrik/Desktop/PET_AD/")
+pet_normal = read_pet_images("C:/Users/Henrik/Desktop/PET_NORMAL/")
+
+mri_ad = read_mri_images("C:/Users/Henrik/Desktop/ad/")
+mri_normal = read_mri_images("C:/Users/Henrik/Desktop/normal/")
 
 
-images_ad = read_mri_images("C:/Users/Henrik/Desktop/ad/")
-images_nor = read_mri_images("C:/Users/Henrik/Desktop/normal/")
-
-
-images = images_ad + images_nor
+#images = mri_ad + mri_normal
+images = pet_ad + pet_normal
 
 targets = []
-targets += ["AD"]*len(images_ad)
-targets += ["NL"]*len(images_nor)
+#targets += ["AD"]*len(images_ad)
+#targets += ["NL"]*len(images_nor)
+targets += ["AD"]*len(pet_ad)
+targets += ["NL"]*len(pet_normal)
+
+
 
 
 
 X_train, X_test, y_train, y_test = train_test_split(images, targets, test_size=0.5, random_state=0)
-
 
 coeffs_all = apply_dwt(X_train+X_test)
 coeffs_train = apply_dwt(X_train)
