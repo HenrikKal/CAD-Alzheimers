@@ -168,6 +168,9 @@ def print_matrix(matrix):
     for row in matrix:
         print(row)
 
+
+
+
 pet_ad = read_pet_images("C:/Users/Henrik/Desktop/PET_AD/")
 pet_normal = read_pet_images("C:/Users/Henrik/Desktop/PET_NORMAL/")
 
@@ -231,24 +234,6 @@ print(gnb.predict(pca_test))
 print(y_test)
 
 
-#plot_mri(images, 1)
 
 
 
-
-
-
-
-
-
-
-
-
-# I'm following this
-#https://www.youtube.com/watch?v=_lY74pXWlS8
-
-# So currently i'm applying DWT to each image individualyl, then i'm converting the matrix that
-# I get from it into a vector simply by unfolding the matrix. For each image I get such a vector.
-# Right now i'm trying to combine these vectors into a matrix, by inserting them as columns.
-# Current problem is inserting the vector columns.
-# Eventually, the plan is to run PCA on this entire matrix.
