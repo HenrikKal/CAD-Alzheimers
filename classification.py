@@ -52,10 +52,6 @@ def plot_pet(path):
     pyplot.imshow(array_dicom[:, :, 80])
 
 
-    #pyplot.figure(dpi=300)
-    #pyplot.axes().set_aspect('equal', 'datalim')
-    #pyplot.set_cmap(pyplot.gray())
-    #pyplot.pcolormesh(x, y, np.flipud(array_dicom[:, :, 80]))
 
     pyplot.show()
 
@@ -107,7 +103,7 @@ def read_mri_images(path):
         for file in files:
             if ".nii" in file.lower():
                 img = nib.load(path+file)
-                images.append(img.get_data()[60, :, :])
+                images.append(img.get_data())
 
     return images
 
@@ -115,10 +111,35 @@ def read_mri_images(path):
 
 
 
-def apply_dwt(images):
+def apply_dwt(brains):
     coeffs = []
-    for image in images:
-        p = pywt.wavedec2(image, 'haar', level=3)[1][2]
+    i = 1
+    for brain in brains:
+        #print(len(brains))
+       # #print(brain.shape[0])
+        #print(brain.shape[2])
+        #matrix = brain[0]
+        #print(matrix.shape)
+        col = 0
+        #print(matrix[0:brain.shape[0], 1440:1600])
+        average_matrix = brain[0]
+        for image in range(0,len(brain)):
+                #print("m:", matrix[0:brain.shape[0], col:col+brain.shape[2]])
+                #print("c:", col)
+                #matrix[0:brain.shape[0], col:col+brain.shape[2]] = brain[image]
+               # print("0-", brain.shape[0], "&", str(col)+"-"+str(col+brain.shape[2]))
+                #print(brain[image].shape)
+                #col += brain.shape[2]
+                #matrix = np.concatenate((matrix,brain[image]), axis=1)
+                average_matrix += brain[image]
+       # print(matrix.shape)
+        #print("lul",i, matrix[90][660:690])
+        #i+=1
+
+        average_matrix /= len(brain)
+        #print(average_matrix)
+        p = pywt.wavedec2(average_matrix, 'haar', level=3)[1][2]
+        p = p.astype(float)
         p = preprocessing.scale(p)
         coeffs.append(p)
 
@@ -133,29 +154,10 @@ def create_matrix(coeffs):
     vector = matrix_to_vector(coeffs[0])
     matrix = np.zeros((len(vector), 0))
     matrix = np.insert(matrix, 0, vector, 1)
-    #vectors = []
-    """for i in range(len(coeffs)):
-        vectors.append(matrix_to_vector(coeffs[i]))
-
-    matrix = np.zeros((len(max(vectors, key=len)),0))
-    for i in range(len(vectors)):
-        if len(vectors[i]) < len(matrix):
-            print("vector:\n")
-            print(len(vectors[i]))
-            print("matrix\n")
-            print(len(matrix))
-            lendiff = len(matrix)-len(vectors[i])
-            print("lendiff:")
-            print(lendiff)
-            vectors[i] = np.pad(vectors[i], (0,lendiff), 'constant', constant_values = (0))
-            print("res:")
-            print(len(vectors[i]))
-        matrix = np.insert(matrix,i,vectors[i],1)"""
 
     for i in range(1, len(coeffs)):
         v = matrix_to_vector(coeffs[i])
-        #print(len(v))
-        #lst.append(v)
+
         matrix = np.insert(matrix, i, v, 1)
 
     return matrix
@@ -176,7 +178,8 @@ def matrix_to_vector(matrix):
     # unfold matrix into one vector
     vector = np.zeros(len(matrix)*len(matrix[0]))
     # row in matrix
-    for row_nr in range(len(matrix[0])):
+    for row_nr in range(matrix.shape[0]):
+
         row = matrix[row_nr]
         # element in row
         for el in range(len(row)):
@@ -193,23 +196,23 @@ def print_matrix(matrix):
 
 #pet_ad = read_pet_images("C:/Users/Henrik/Desktop/PET_AD/")
 #pet_normal = read_pet_images("C:/Users/Henrik/Desktop/PET_NORMAL/")
-mri_ad = read_mri_images("/Users/gustavkjellberg/Documents/Bsc/CAD-Alzheimers-master/MRI/ADNI-MRI-AD/concat_ad/")
-mri_normal = read_mri_images("/Users/gustavkjellberg/Documents/Bsc/CAD-Alzheimers-master/MRI/ADNI-MRI-Normal/concat_normal/")
+mri_ad = read_mri_images("C:/Users/Henrik/Desktop/ad/")
+mri_normal = read_mri_images("C:/Users/Henrik/Desktop/normal/")
 
 mri_ad_192 = []
 mri_ad_256 = []
 for im in mri_ad:
-    if im.shape == (192,160):
+    if im.shape == (192,192,160):
         mri_ad_192.append(im)
-    elif im.shape == (256,166):
+    elif im.shape == (256,256,166):
         mri_ad_256.append(im)
 
 mri_normal_192 = []
 mri_normal_256 = []
 for im in mri_normal:
-    if im.shape == (192,160):
+    if im.shape == (192,192, 160):
         mri_normal_192.append(im)
-    elif im.shape == (256,166):
+    elif im.shape == (256, 256, 166):
         mri_normal_256.append(im)
 
 

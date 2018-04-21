@@ -69,10 +69,10 @@ def plot_mri(images, nr):
 
 
 
-def read_pet_images(path):
+def read_pet_images(path, nr_images):
     pet_images = []
     for dir_name, sub_dir, files in os.walk(path):
-        for sub in sub_dir:
+        for sub in sub_dir[:nr_images]:
 
             for d, s, files in os.walk(path+"/"+sub+"/"):
                     dcm_files = []
@@ -81,16 +81,18 @@ def read_pet_images(path):
                             dcm_files.append(path + "/" + sub + "/" + "/" + file)
 
 
+
                     ref = dicom.read_file(dcm_files[0])
                     pix_dim = (int(ref.Rows), int(ref.Columns), len(dcm_files))
 
                     array_dicom = np.zeros(pix_dim, dtype=ref.pixel_array.dtype)
 
                     for file_name in dcm_files:
+                        print(file_name)
                         ds = dicom.read_file(file_name)
                         array_dicom[:, :, dcm_files.index(file_name)] = ds.pixel_array
 
-                    matrix = array_dicom[:, :, 88]
+                    matrix = array_dicom[:, :, :] # {:, :, x]
                     pet_images.append(matrix)
 
 
@@ -114,7 +116,7 @@ def read_mri_images(path):
 def apply_dwt(images):
     coeffs = []
     for image in images:
-        p = pywt.wavedec2(image, 'haar', level=3)[1][2]
+        p = pywt.wavedec2(image, 'haar', level=3)[3][2]
         p = preprocessing.scale(p)
         coeffs.append(p)
 
@@ -123,11 +125,34 @@ def apply_dwt(images):
 
 
 
+def apply_dwt2(brains):
+    coeffs = []
+    print(len(brains))
+    for brain in brains:
+
+        average_matrix = brain[0]
+
+        for i in range(0, brain.shape[2]):
+            #print(brain[image])
+
+            average_matrix += brain[i]
+
+        average_matrix = np.true_divide(average_matrix, brain.shape[2])
+        print(average_matrix)
+        p = pywt.wavedec2(average_matrix, 'haar', level=3)[2][2]
+        p = p.astype(float)
+        p = preprocessing.scale(p)
+        coeffs.append(p)
+
+
+    return coeffs
+
 
 
 def create_matrix(coeffs):
 
     vector = matrix_to_vector(coeffs[0])
+    print(len(vector))
     matrix = np.zeros((len(vector), 0))
     matrix = np.insert(matrix, 0, vector, 1)
 
@@ -168,19 +193,37 @@ def print_matrix(matrix):
     for row in matrix:
         print(row)
 
-pet_ad = read_pet_images("C:/Users/Henrik/Desktop/PET_AD/")
-pet_normal = read_pet_images("C:/Users/Henrik/Desktop/PET_NORMAL/")
 
-mri_ad = read_mri_images("C:/Users/Henrik/Desktop/ad/")
-mri_normal = read_mri_images("C:/Users/Henrik/Desktop/normal/")
+
+def plot_all(ad, normal):
+
+    list = ad+normal
+    for i in range(len(list)):
+        pyplot.subplot(2, len(list)/2, i+1)
+        pyplot.imshow(list[i])
+
+
+
+    pyplot.show()
+
+
+pet_ad = read_pet_images("C:/Users/Henrik/Desktop/PET_AD_CLEAN/", 25)
+pet_normal = read_pet_images("C:/Users/Henrik/Desktop/PET_NORMAL_CLEAN/", 25)
+
+#plot_all(pet_ad, pet_normal)
+
+
+
+#mri_ad = read_mri_images("C:/Users/Henrik/Desktop/ad/")
+#mri_normal = read_mri_images("C:/Users/Henrik/Desktop/normal/")
 
 
 #images = mri_ad + mri_normal
 images = pet_ad + pet_normal
 
 targets = []
-#targets += ["AD"]*len(images_ad)
-#targets += ["NL"]*len(images_nor)
+#targets += ["AD"]*len(mri_ad)
+#targets += ["NL"]*len(mri_normal)
 targets += ["AD"]*len(pet_ad)
 targets += ["NL"]*len(pet_normal)
 
@@ -188,11 +231,14 @@ targets += ["NL"]*len(pet_normal)
 
 
 
-X_train, X_test, y_train, y_test = train_test_split(images, targets, test_size=0.5, random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(images, targets, test_size=0.2, random_state=0)
 
-coeffs_all = apply_dwt(X_train+X_test)
-coeffs_train = apply_dwt(X_train)
-coeffs_test = apply_dwt(X_test)
+print(pet_ad[0].shape)
+
+coeffs_all = apply_dwt2(X_train+X_test)
+
+coeffs_train = apply_dwt2(X_train)
+coeffs_test = apply_dwt2(X_test)
 matrix_all = create_matrix(coeffs_all)
 matrix_train = create_matrix(coeffs_train)
 matrix_test = create_matrix(coeffs_test)
@@ -230,25 +276,3 @@ print(gnb.score(pca_test, y_test))
 print(gnb.predict(pca_test))
 print(y_test)
 
-
-#plot_mri(images, 1)
-
-
-
-
-
-
-
-
-
-
-
-
-# I'm following this
-#https://www.youtube.com/watch?v=_lY74pXWlS8
-
-# So currently i'm applying DWT to each image individualyl, then i'm converting the matrix that
-# I get from it into a vector simply by unfolding the matrix. For each image I get such a vector.
-# Right now i'm trying to combine these vectors into a matrix, by inserting them as columns.
-# Current problem is inserting the vector columns.
-# Eventually, the plan is to run PCA on this entire matrix.
