@@ -3,19 +3,6 @@ import os
 import numpy as np
 from matplotlib import pyplot
 import nibabel as nib
-from nilearn import plotting
-from sklearn import svm
-from sklearn.decomposition import PCA
-import sklearn.preprocessing as preprocessing
-import pywt
-# tutorial credits
-# https://pyscience.wordpress.com/2014/09/08/dicom-in-python-importing-medical-image-data-into-numpy-with-pydicom-and-vtk/
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB
-
-
-
 
 def plot_pet(path):
     dcm_files = []
@@ -72,7 +59,7 @@ def plot_mri(images, nr):
 def read_pet_images(path, nr_images):
     pet_images = []
     for dir_name, sub_dir, files in os.walk(path):
-        for sub in sub_dir[:nr_images]:
+        for sub in sub_dir[:nr_images-1]:
 
             for d, s, files in os.walk(path+"/"+sub+"/"):
                     dcm_files = []
@@ -110,169 +97,4 @@ def read_mri_images(path):
     return images
 
 
-
-
-
-def apply_dwt(images):
-    coeffs = []
-    for image in images:
-        p = pywt.wavedec2(image, 'haar', level=3)[3][2]
-        p = preprocessing.scale(p)
-        coeffs.append(p)
-
-
-    return coeffs
-
-
-
-def apply_dwt2(brains):
-    coeffs = []
-    print(len(brains))
-    for brain in brains:
-
-        average_matrix = brain[0]
-
-        for i in range(0, brain.shape[2]):
-            #print(brain[image])
-
-            average_matrix += brain[i]
-
-        average_matrix = np.true_divide(average_matrix, brain.shape[2])
-        print(average_matrix)
-        p = pywt.wavedec2(average_matrix, 'haar', level=3)[2][2]
-        p = p.astype(float)
-        p = preprocessing.scale(p)
-        coeffs.append(p)
-
-
-    return coeffs
-
-
-
-def create_matrix(coeffs):
-
-    vector = matrix_to_vector(coeffs[0])
-    print(len(vector))
-    matrix = np.zeros((len(vector), 0))
-    matrix = np.insert(matrix, 0, vector, 1)
-
-    for i in range(1, len(coeffs)):
-        v = matrix_to_vector(coeffs[i])
-        matrix = np.insert(matrix, i, v, 1)
-
-    return matrix
-
-
-def apply_pca(matrix):
-    pca = PCA(n_components=None)
-    pca.fit(matrix)
-    pca_matrix = pca.transform(matrix)
-
-
-    return pca_matrix
-
-
-
-
-def matrix_to_vector(matrix):
-    # unfold matrix into one vector
-    vector = np.zeros(len(matrix)*len(matrix[0]))
-    # row in matrix
-    for row_nr in range(len(matrix[0])):
-        row = matrix[row_nr]
-        # element in row
-        for el in range(len(row)):
-            vector[row_nr*el] = matrix[row_nr][el]
-
-
-    return vector
-
-
-def print_matrix(matrix):
-
-    for row in matrix:
-        print(row)
-
-
-
-def plot_all(ad, normal):
-
-    list = ad+normal
-    for i in range(len(list)):
-        pyplot.subplot(2, len(list)/2, i+1)
-        pyplot.imshow(list[i])
-
-
-
-    pyplot.show()
-
-
-pet_ad = read_pet_images("C:/Users/Henrik/Desktop/PET_AD_CLEAN/", 25)
-pet_normal = read_pet_images("C:/Users/Henrik/Desktop/PET_NORMAL_CLEAN/", 25)
-
-#plot_all(pet_ad, pet_normal)
-
-
-
-#mri_ad = read_mri_images("C:/Users/Henrik/Desktop/ad/")
-#mri_normal = read_mri_images("C:/Users/Henrik/Desktop/normal/")
-
-
-#images = mri_ad + mri_normal
-images = pet_ad + pet_normal
-
-targets = []
-#targets += ["AD"]*len(mri_ad)
-#targets += ["NL"]*len(mri_normal)
-targets += ["AD"]*len(pet_ad)
-targets += ["NL"]*len(pet_normal)
-
-
-
-
-
-X_train, X_test, y_train, y_test = train_test_split(images, targets, test_size=0.2, random_state=0)
-
-print(pet_ad[0].shape)
-
-coeffs_all = apply_dwt2(X_train+X_test)
-
-coeffs_train = apply_dwt2(X_train)
-coeffs_test = apply_dwt2(X_test)
-matrix_all = create_matrix(coeffs_all)
-matrix_train = create_matrix(coeffs_train)
-matrix_test = create_matrix(coeffs_test)
-
-pca_train = apply_pca(matrix_train)
-pca_train = pca_train.transpose()
-
-pca_test = apply_pca(matrix_test)
-pca_test = pca_test.transpose()
-
-
-clf = svm.SVC(kernel='linear')
-clf.fit(pca_train, y_train)
-
-
-print("SVM")
-print(clf.score(pca_test, y_test))
-print(clf.predict(pca_test))
-print(y_test)
-
-
-rf = RandomForestClassifier(n_estimators=100, oob_score=True, random_state=123456)
-rf.fit(pca_train, y_train)
-
-print("\nRANDOM FOREST")
-print(rf.score(pca_test, y_test))
-print(rf.predict(pca_test))
-print(y_test)
-
-
-print("\nNAIVE BAYES")
-gnb = BernoulliNB()
-gnb.fit(pca_train, y_train)
-print(gnb.score(pca_test, y_test))
-print(gnb.predict(pca_test))
-print(y_test)
 
