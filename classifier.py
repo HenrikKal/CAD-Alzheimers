@@ -1,4 +1,3 @@
-from imageutils import read_pet_images, read_mri_images
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB
@@ -6,7 +5,6 @@ from sklearn import svm
 from sklearn.decomposition import PCA
 import sklearn.preprocessing as preprocessing
 import pywt
-from matplotlib import pyplot
 import numpy as np
 from cad_log import write_test_log
 from multiprocessing import Pool, Process
@@ -23,8 +21,8 @@ from multiprocessing import Pool, Process
 def apply_dwt(brains, lvl, slices):
     coeffs = []
     for brain in brains:
-        start_slice = len(brain)//2+1
-        end_slice = start_slice
+        start_slice = len(brain)//2-3
+        end_slice = start_slice+5
 
         matrix = brain[start_slice]
 
@@ -112,13 +110,13 @@ def process_data(X_train, X_test, settings):
 
 # Sets up the models
 def train_models(matrix_train, y_train):
-    clf = svm.SVC(kernel='rbf')
+    clf = svm.SVC(kernel='rbf', degree=6, C=6.0)
     clf.fit(matrix_train, y_train)
 
-    rf = RandomForestClassifier(n_estimators=100, oob_score=True)
+    rf = RandomForestClassifier(n_estimators=80, oob_score=True)
     rf.fit(matrix_train, y_train)
 
-    gnb = BernoulliNB()
+    gnb = GaussianNB()
     gnb.fit(matrix_train, y_train)
 
     return clf, rf, gnb
@@ -215,9 +213,9 @@ def main(cache, settings):
 def run(cache, nr_ad, nr_normal):
     # settings describes how data is processed,
     # format: (nr_ad, nr_normal, use_pca, dwt_lvl)
-    iterations = 200
+    iterations = 1000
     use_pca = False
-    dwt_lvl = 3
+    dwt_lvl = 4
     slices = [48]
     test_size = 0.3
 

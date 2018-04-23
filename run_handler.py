@@ -28,7 +28,7 @@ if __name__ == "__main__":
         try:
             classifier.run(cache, nr_ad, nr_normal)
 
-        except RuntimeError as e:
+        except Exception as e:
             print("Error in classifier.py")
             print(e)
 
