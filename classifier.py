@@ -8,8 +8,8 @@ import sklearn.preprocessing as preprocessing
 import pywt
 from matplotlib import pyplot
 import numpy as np
-from datetime import datetime
-
+from cad_log import write_test_log
+from multiprocessing import Pool, Process
 
 
 
@@ -19,29 +19,31 @@ from datetime import datetime
 #############################
 
 
-def apply_dwt(brains, lvl):
+
+def apply_dwt(brains, lvl, slices):
     coeffs = []
     for brain in brains:
+        start_slice = len(brain)//2+1
+        end_slice = start_slice
 
-        average_matrix = brain[59]
+        matrix = brain[start_slice]
 
-      #  for i in range(0, brain.shape[2]):
-            #print(brain[image])
 
-           # average_matrix += brain[i]
+        for i in range(start_slice+1, end_slice+1):
+            matrix = np.concatenate((matrix, brain[i]), axis=1)
 
-        #average_matrix = np.true_divide(average_matrix, brain.shape[2])
-        p = pywt.wavedec2(average_matrix, 'haar', level=lvl)[1][2]
+
+        p = pywt.wavedec2(matrix, 'haar', level=lvl)[0]
         p = p.astype(float)
         p = preprocessing.scale(p)
         coeffs.append(p)
-
-
 
     return coeffs
 
 
 
+# Creates a single matrix from all the matrices retrieved from DWT by
+# transforming each matrix into a column vector, and then appending each column
 def create_matrix(coeffs):
 
     vector = matrix_to_vector(coeffs[0])
@@ -55,6 +57,7 @@ def create_matrix(coeffs):
     return matrix
 
 
+
 def apply_pca(matrix):
     pca = PCA(n_components=6)
     matrix = matrix.transpose()
@@ -63,13 +66,11 @@ def apply_pca(matrix):
     return (pca_matrix)
 
 
-
-
+# Unfolds matrix into one vector
 def matrix_to_vector(matrix):
-    # unfold matrix into one vector
     vector = np.zeros(len(matrix)*len(matrix[0]))
     # row in matrix
-    for row_nr in range(len(matrix[0])):
+    for row_nr in range(matrix.shape[0]):
         row = matrix[row_nr]
         # element in row
         for el in range(len(row)):
@@ -80,30 +81,38 @@ def matrix_to_vector(matrix):
 
 
 
-
+# Processes both the training data and the test input data
+# according to the specified settings.
 def process_data(X_train, X_test, settings):
     use_pca = settings[3]
     dwt_lvl = settings[4]
+    slices = settings[5]
 
-    dwt_train = apply_dwt(X_train, dwt_lvl)
-    dwt_test = apply_dwt(X_test, dwt_lvl)
+    # DWT for each image
+    dwt_train = apply_dwt(X_train, dwt_lvl, slices)
+    dwt_test = apply_dwt(X_test, dwt_lvl, slices)
+
+    # Create single matrix
     matrix_train = create_matrix(dwt_train)
     matrix_test = create_matrix(dwt_test)
 
     if use_pca:
         matrix_train = apply_pca(matrix_train)
         matrix_test = apply_pca(matrix_test)
+    else:
+        matrix_train = matrix_train.transpose()
+        matrix_test = matrix_test.transpose()
 
-    return matrix_train.transpose(), matrix_test.transpose()
+    return matrix_train, matrix_test
 
 
 ####################################
 ### TRAINING
 ###################################
 
-
+# Sets up the models
 def train_models(matrix_train, y_train):
-    clf = svm.SVC(kernel='linear')
+    clf = svm.SVC(kernel='rbf')
     clf.fit(matrix_train, y_train)
 
     rf = RandomForestClassifier(n_estimators=100, oob_score=True)
@@ -116,7 +125,9 @@ def train_models(matrix_train, y_train):
 
 
 
-
+# Specified classifier predicts input test data
+# and compares it to expected output
+# Returns accuracy, the actual predictions and the expected output
 def predict(classifier, matrix_test, y_test):
     score = classifier.score(matrix_test, y_test)
     predictions = classifier.predict(matrix_test)
@@ -127,8 +138,8 @@ def predict(classifier, matrix_test, y_test):
 
 
 
-
-
+# Takes the ad and normal images and splits them
+# according to specified test size
 def split_data(ad_images, normal_images, test_s):
     targets = []
 
@@ -141,77 +152,85 @@ def split_data(ad_images, normal_images, test_s):
 
 
 
-
+# Trains and tests the models for specified number of iterations
+# Returns the mean accuracy for all models
 def test_accuracy(pet_ad, pet_normal, settings):
     svm_array = []
     rf_array = []
     nb_array = []
+    iter = settings[2]
+    test_size = settings[6]
 
-    for i in range(1, settings[2]+1):
-        print("ITERATION: ", i, "/", settings[2])
-        X_train,  X_test, y_train, y_test = split_data(pet_ad, pet_normal, 0.4)
+    for i in range(1, iter+1):
+        print("ITERATION: ", i, "/", iter)
+
+        # Split data
+        X_train,  X_test, y_train, y_test = split_data(pet_ad, pet_normal, test_size)
+
+        # Process data
         matrix_train, matrix_test = process_data(X_train, X_test, settings)
+
+        # Init models
         svm, rf, nb = train_models(matrix_train, y_train)
-        svm_array.append(predict(svm, matrix_test, y_test)[0])
-        rf_array.append(predict(rf, matrix_test, y_test)[0])
-        nb_array.append(predict(nb, matrix_test, y_test)[0])
+
+        # Test
+        svm_acc = predict(svm, matrix_test, y_test)[0]
+        rf_acc = predict(rf, matrix_test, y_test)[0]
+        nb_acc = predict(nb, matrix_test, y_test)[0]
+
+
+        svm_array.append(svm_acc)
+        rf_array.append(rf_acc)
+        nb_array.append(nb_acc)
 
 
     return np.mean(svm_array), np.mean(rf_array),  np.mean(nb_array)
 
 
-def write_test_log(settings, results):
-
-
-    log_string = str(datetime.now()) + "\n"
-    log_string += "nr_AD_images: " + str(settings[0]) + "\n"
-    log_string += "nr_Normal_images: " + str(settings[1]) + "\n"
-    log_string += "PCA applied: " + str(settings[3]) + "\n"
-    log_string += "DWT level: " + str(settings[4]) + "\n"
-    log_string += "nr_iterations: " + str(settings[2]) + "\n"
-    log_string += "SVM acc: " + str(results[0]) + "\n"
-    log_string += "RF acc: " + str(results[1]) + "\n"
-    log_string += "NB acc: " + str(results[2]) + "\n"
-    log_string += "\n"
-
-    with open("C:/Users/Henrik/Desktop/test_log.txt", "a") as log_file:
-        log_file.write(log_string)
 
 
 
 
-def main(settings):
-    print("START READING")
-    pet_ad = read_pet_images("C:/Users/Henrik/Desktop/PET_AD_CLEAN/", settings[0])
-    pet_normal = read_pet_images("C:/Users/Henrik/Desktop/PET_NORMAL_CLEAN/", settings[1])
-    print("DONE READING")
+def main(cache, settings):
 
 
+    pet_ad = cache[0]
+    pet_normal = cache[1]
 
-    results = test_accuracy(pet_ad, pet_normal, settings)
+    svm_acc, rf_acc, nb_acc = test_accuracy(pet_ad, pet_normal, settings)
     print("SVM")
-    print(results[0])
+    print(svm_acc)
     print("RF")
-    print(results[1])
+    print(rf_acc)
     print("NB")
-    print(results[2])
+    print(nb_acc)
 
-    write_test_log(settings, results)
-
-
-# settings describes how data is processed,
-# format: (nr_ad, nr_normal, use_pca, dwt_lvl)
-nr_ad = 25
-nr_normal = 25
-iterations = 200
-use_pca = False
-dwt_lvl = 3
-
-settings = (nr_ad, nr_normal, iterations, use_pca, dwt_lvl)
+    write_test_log("C:/Users/Henrik/Desktop/test_log.txt", settings, (svm_acc, rf_acc, nb_acc))
 
 
-main(settings)
 
+
+
+# If you change something, hit CTRL + S in this file before reloading
+def run(cache, nr_ad, nr_normal):
+    # settings describes how data is processed,
+    # format: (nr_ad, nr_normal, use_pca, dwt_lvl)
+    iterations = 200
+    use_pca = False
+    dwt_lvl = 3
+    slices = [48]
+    test_size = 0.3
+
+    print("iterations:", iterations)
+    print("Use PCA: ", use_pca)
+    print("DWT lvl: ", dwt_lvl)
+    print("test_size: ", test_size)
+
+
+    settings = (nr_ad, nr_normal, iterations, use_pca, dwt_lvl, slices, test_size)
+
+    print("RUN")
+    main(cache, settings)
 
 
 

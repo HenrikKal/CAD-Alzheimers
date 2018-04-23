@@ -71,10 +71,10 @@ def plot_mri(images, nr):
 
 
 
-def read_pet_images(path):
+def read_pet_images(path, nr_images):
     pet_images = []
     for dir_name, sub_dir, files in os.walk(path):
-        for sub in sub_dir:
+        for sub in sub_dir[:nr_images]:
 
             for d, s, files in os.walk(path+"/"+sub+"/"):
                     dcm_files = []
@@ -83,16 +83,18 @@ def read_pet_images(path):
                             dcm_files.append(path + "/" + sub + "/" + "/" + file)
 
 
+
                     ref = dicom.read_file(dcm_files[0])
                     pix_dim = (int(ref.Rows), int(ref.Columns), len(dcm_files))
 
                     array_dicom = np.zeros(pix_dim, dtype=ref.pixel_array.dtype)
 
                     for file_name in dcm_files:
+                        print(file_name)
                         ds = dicom.read_file(file_name)
                         array_dicom[:, :, dcm_files.index(file_name)] = ds.pixel_array
 
-                    matrix = array_dicom[:, :, 88]
+                    matrix = array_dicom[:, :, :] # {:, :, x]
                     pet_images.append(matrix)
 
 
@@ -118,45 +120,39 @@ def read_mri_images(path):
 
 def apply_dwt(brains):
     coeffs = []
-    i = 1
+
+
+    nr = 0
+    #print("BRAINS:", len(brains))
     for brain in brains:
-        #print(len(brains))
-       # #print(brain.shape[0])
-        #print(brain.shape[2])
-        #matrix = brain[0]
-        #print(matrix.shape)
-        col = 0
-        #print(matrix[0:brain.shape[0], 1440:1600])
-        average_matrix = brain[0]
-        for image in range(0,len(brain)):
-                #print("m:", matrix[0:brain.shape[0], col:col+brain.shape[2]])
-                #print("c:", col)
-                #matrix[0:brain.shape[0], col:col+brain.shape[2]] = brain[image]
-               # print("0-", brain.shape[0], "&", str(col)+"-"+str(col+brain.shape[2]))
-                #print(brain[image].shape)
-                #col += brain.shape[2]
-                #matrix = np.concatenate((matrix,brain[image]), axis=1)
-                average_matrix += brain[image]
+       # print("BRAIN NUMBER:", nr)
+        nr+=1
+        matrix = np.zeros((brain.shape[0]*8, int(brain.shape[1]*brain.shape[2]/8)))
        # print(matrix.shape)
-        #print("lul",i, matrix[90][660:690])
-        #i+=1
+        col = 0
+        row = 0
+        for i in range(0, brain.shape[2]):
+               # print(brain[:, :, i].shape)
 
-        average_matrix /= len(brain)
-        #print(average_matrix)
-        p = pywt.wavedec2(average_matrix, 'haar', level=3)[1][2]
+                #print(brain[i].shape)
+                #print("col:",  col)
+                matrix[row:row+brain.shape[0], col:col+brain.shape[1]] = brain[:, :, i]
+                #print("0-", brain.shape[0], "&", str(col)+"-"+str(col+brain.shape[2]))
+                #print(brain[image].shape)
+                col += brain.shape[1]
+                if col == brain.shape[1]*brain.shape[2]/8:
+                    col = 0
+                    row +=brain.shape[0]
+
+
+        #pyplot.imshow(matrix)
+        #pyplot.show()
+        p = pywt.wavedec2(matrix, 'haar', level=3)[1][2]
         p = p.astype(float)
-
-    # with concatenate
-    #for brain in brains:
-      #  matrix = brain[0]
-      #  for i in range(1,len(brains)):
-      #      matrix=np.concatenate((matrix,brain[i]), axis=1)
-      #  p = pywt.wavedec2(matrix, 'haar', level=3)[1][2]
-      #  p = preprocessing.scale(p)
-      #  coeffs.append(p)
-
+        coeffs.append(p)
 
     return coeffs
+
 
 
 
@@ -206,19 +202,17 @@ def print_matrix(matrix):
     for row in matrix:
         print(row)
 
-pet_ad = read_pet_images("C:/Users/Henrik/Desktop/PET_AD/")
-pet_normal = read_pet_images("C:/Users/Henrik/Desktop/PET_NORMAL/")
-mri_ad = read_mri_images("C:/Users/Henrik/Desktop/ad/")
-mri_normal = read_mri_images("C:/Users/Henrik/Desktop/normal/")
+pet_ad = read_pet_images("C:/Users/Henrik/Desktop/PET_AD_CLEAN/", 5)
+pet_normal = read_pet_images("C:/Users/Henrik/Desktop/PET_NORMAL_CLEAN/", 5)
+#mri_ad = read_mri_images("C:/Users/Henrik/Desktop/ad/")
+#mri_normal = read_mri_images("C:/Users/Henrik/Desktop/normal/")
 
 #pet_ad = read_pet_images("/Users/gustavkjellberg/Documents/Bsc/CAD-Alzheimers-master/PET/PET_AD_56/")
 #pet_normal = read_pet_images("/Users/gustavkjellberg/Documents/Bsc/CAD-Alzheimers-master/PET/PET_NORMAL_56/")
 #mri_ad = read_mri_images("/Users/gustavkjellberg/Documents/Bsc/CAD-Alzheimers-master/MRI/ADNI-MRI-AD/concat_ad/")
 #mri_normal = read_mri_images("/Users/gustavkjellberg/Documents/Bsc/CAD-Alzheimers-master/MRI/ADNI-MRI-Normal/concat_normal/")
 
-for im in pet_ad:
-    print(im.shape)
-
+"""""""""
 mri_ad_192 = []
 mri_ad_256 = []
 for im in mri_ad:
@@ -242,19 +236,23 @@ img_256 = mri_ad_256+mri_normal_256
 images = mri_ad + mri_normal
 #images = pet_ad + pet_normal
 
-targets_192 = []
-targets_256 = []
-targets_192 += ["AD"]*len(mri_ad_192)
-targets_192 += ["NL"]*len(mri_normal_192)
-targets_256 += ["AD"]*len(mri_ad_256)
-targets_256 += ["NL"]*len(mri_normal_256)
-
-#targets += ["AD"]*len(pet_ad)
-#targets += ["NL"]*len(pet_normal)
+#targets_192 = []
+#targets_256 = []
+#targets_192 += ["AD"]*len(mri_ad_192)
+#targets_192 += ["NL"]*len(mri_normal_192)
+#targets_256 += ["AD"]*len(mri_ad_256)
+#targets_256 += ["NL"]*len(mri_normal_256)
+"""""""""""
+targets = []
+targets += ["AD"]*len(pet_ad)
+targets += ["NL"]*len(pet_normal)
 #X = mri_normal_192[:5]+mri_ad_192[:5]
 #y = ["NL","NL","NL","NL","NL","AD","AD","AD","AD","AD"]
-y = targets_192
-X = img_192
+#y = targets_192
+#X = img_192
+
+y = targets
+X = pet_ad+pet_normal
 
 
 #X_train, X_test, y_train, y_test = train_test_split(images, targets, test_size=0.4, random_state=2)
@@ -266,6 +264,7 @@ nbArray = []
 
 
 for i in range(200):
+    print("ITERATION:", i)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4)
 
     #kf = KFold(n_splits=3)
@@ -276,6 +275,9 @@ for i in range(200):
 
     coeffs_train = apply_dwt(X_train)
     coeffs_test = apply_dwt(X_test)
+    print(len(coeffs_train))
+    print(len(coeffs_test))
+
     # print("train\n")
     matrix_train = create_matrix(coeffs_train)
     # print("test\n")
@@ -287,10 +289,11 @@ for i in range(200):
     pca_test = apply_pca(matrix_test)
     #pca_test = pca_test.transpose()
 
-    clf = svm.SVC(kernel='rbf')
+    clf = svm.SVC(kernel='linear', cache_size=7000)
     clf.fit(pca_train, y_train)
     #print("\nSVM")
     #print(clf.score(pca_test, y_test))
+    print(pca_test.shape[1])
     svmArray.append(clf.score(pca_test, y_test))
     rf = RandomForestClassifier(n_estimators=100, oob_score=True)
     rf.fit(pca_train, y_train)
@@ -309,6 +312,9 @@ for i in range(200):
     # print(gnb.predict(pca_test))
     # print(y_test)
     nbArray.append(gnb.score(pca_test, y_test))
+
+    print("\nSVM:\n", np.mean(svmArray), "\nRF:\n", np.mean(rfArray), "\nNB:\n", np.mean(nbArray))
+
 print("\nSVM:\n",np.mean(svmArray),"\nRF:\n",np.mean(rfArray),"\nNB:\n",np.mean(nbArray))
 
 
@@ -515,14 +521,3 @@ print("nbMean:")
 print(np.mean(nbArray))"""
 
 
-
-
-
-# I'm following this
-#https://www.youtube.com/watch?v=_lY74pXWlS8
-
-# So currently i'm applying DWT to each image individualyl, then i'm converting the matrix that
-# I get from it into a vector simply by unfolding the matrix. For each image I get such a vector.
-# Right now i'm trying to combine these vectors into a matrix, by inserting them as columns.
-# Current problem is inserting the vector columns.
-# Eventually, the plan is to run PCA on this entire matrix.

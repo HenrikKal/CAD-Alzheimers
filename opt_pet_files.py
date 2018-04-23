@@ -34,7 +34,7 @@ def read_folder(path, dst):
 
 
 pet_folder_ad = "C:/Users/Henrik/Desktop/PET_AD_56"
-pet_folder_normal = "C:/Users/Henrik/Desktop/ADNI"
+pet_folder_normal = "C:/Users/Henrik/Desktop/ALL_PET"
 
 
 #read_folder(pet_folder_ad, "C:/Users/Henrik/Desktop/PET_AD_CLEAN")
